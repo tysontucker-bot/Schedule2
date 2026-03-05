@@ -1575,25 +1575,20 @@ document.addEventListener("mouseup", () => {
 let displayUpdateIntervalId = null;
 let schedule = [];
 
-document.addEventListener("DOMContentLoaded", async () => {
+   document.addEventListener("DOMContentLoaded", async () => {
 
   updateAfternoonMeetingButton();
 
-  schedule = defaultScheduleData.map(item => ({
-    name: item.name,
-    time: item.time,
-    icon: item.icon || "",
-  }));
-
-  renderCards();
-  updateHighlight();
-  updateDisplay();
-
   await window.dataSdk.init({
-   onDataChanged(data) {
-     if (!data) return;
+    onDataChanged(data) {
 
-      if (!data || data.length === 0) {
+      if (!data) return;
+
+      if (data.length === 0) {
+        // If backend is empty → populate it with defaults
+        defaultScheduleData.forEach(item => {
+          window.dataSdk.create(item);
+        });
         return;
       }
 
@@ -1610,6 +1605,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  if (!displayUpdateIntervalId) {
+    displayUpdateIntervalId = setInterval(updateDisplay, 1000);
+  }
+
+   
+  });
+
   await autoLoadSymbols();
   
   if (!displayUpdateIntervalId) {
@@ -1622,5 +1624,6 @@ document.addEventListener("DOMContentLoaded", async () => {
  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9d75c44f654ae873',t:'MTc3MjY3ODU0MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 
 </html>
+
 
 
