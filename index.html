@@ -1,21 +1,34 @@
 <html>
 <head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schedule2</title>
   <script>
+    let timeIntervalId;
+
     function updateTime() {
+      const el = document.getElementById('currentTime');
+      if (!el) return;
+
       const now = new Date();
-      const localTime = now.toLocaleString(); // Changed to local time
-      document.getElementById('currentTime').innerText = localTime;
+      // Keep it simple; uses the user's locale/timezone.
+      el.innerText = now.toLocaleString();
     }
-    function updateDisplay() {
+
+    function startClock() {
+      // Ensure the target element exists before starting.
       updateTime();
+
+      // Clear any existing interval (prevents duplicates if startClock runs twice).
+      if (timeIntervalId) clearInterval(timeIntervalId);
+      timeIntervalId = setInterval(updateTime, 1000);
     }
-    setInterval(updateDisplay, 1000); // Keep interval for updating every second
+
+    // Wait for DOM so #currentTime exists before setInterval tries to update it.
+    document.addEventListener('DOMContentLoaded', startClock);
   </script>
 </head>
 <body>
   <div id="currentTime"></div>
-  <script>
-    updateDisplay(); // Initialize on load
-  </script>
 </body>
 </html>
