@@ -1,107 +1,139 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useReducer, useCallback, useEffect } from 'react';
 import type { Task } from './types';
 import TimerPanel from './TimerPanel';
-import TaskList from './TaskList';
+import SchedulePanel from './SchedulePanel';
 
 const INITIAL_TASKS: Task[] = [
-  { id: 1, label: 'Morning Meeting', duration: 10, completed: false },
-  { id: 2, label: 'Reading', duration: 20, completed: false },
-  { id: 3, label: 'Math', duration: 20, completed: false },
-  { id: 4, label: 'Snack Break', duration: 10, completed: false },
-  { id: 5, label: 'Writing', duration: 15, completed: false },
-  { id: 6, label: 'Science', duration: 15, completed: false },
+  { id: 'morning-meeting', label: 'Morning Meeting', duration: 10, completed: false },
+  { id: 'reading', label: 'Reading', duration: 20, completed: false },
+  { id: 'math', label: 'Math', duration: 20, completed: false },
+  { id: 'snack-break', label: 'Snack Break', duration: 10, completed: false },
+  { id: 'writing', label: 'Writing', duration: 15, completed: false },
 ];
 
-function App() {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [totalSeconds, setTotalSeconds] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+interface AppState {
+  tasks: Task[];
+  currentTaskIndex: number;
+  timerRunning: boolean;
+  timeRemaining: number;
+}
 
-  const clearTimer = useCallback(() => {
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+type AppAction =
+  | { type: 'TOGGLE_TIMER' }
+  | { type: 'TICK' }
+  | { type: 'MARK_COMPLETE'; taskId: string };
+
+function findNextIndex(tasks: Task[], fromIndex: number): number {
+  for (let i = fromIndex + 1; i < tasks.length; i++) {
+    if (!tasks[i].completed) return i;
+  }
+  return -1;
+}
+
+function reducer(state: AppState, action: AppAction): AppState {
+  switch (action.type) {
+    case 'TOGGLE_TIMER': {
+      const task = state.tasks[state.currentTaskIndex];
+      if (!task || task.completed) return state;
+      return { ...state, timerRunning: !state.timerRunning };
     }
-    setIsRunning(false);
+    case 'TICK': {
+      if (!state.timerRunning) return state;
+      const newTime = state.timeRemaining <= 1 ? 0 : state.timeRemaining - 1;
+      if (newTime === 0) {
+        // Timer expired — advance to next incomplete task
+        const nextIndex = findNextIndex(state.tasks, state.currentTaskIndex);
+        if (nextIndex !== -1) {
+          return {
+            ...state,
+            timerRunning: false,
+            currentTaskIndex: nextIndex,
+            timeRemaining: state.tasks[nextIndex].duration * 60,
+          };
+        }
+        return { ...state, timerRunning: false, timeRemaining: 0 };
+      }
+      return { ...state, timeRemaining: newTime };
+    }
+    case 'MARK_COMPLETE': {
+      const updatedTasks = state.tasks.map((t) =>
+        t.id === action.taskId ? { ...t, completed: true } : t,
+      );
+      const isCurrent = state.tasks[state.currentTaskIndex]?.id === action.taskId;
+      if (!isCurrent) {
+        return { ...state, tasks: updatedTasks };
+      }
+      // Current task completed — stop timer and advance to next
+      const nextIndex = findNextIndex(updatedTasks, state.currentTaskIndex);
+      if (nextIndex !== -1) {
+        return {
+          ...state,
+          tasks: updatedTasks,
+          timerRunning: false,
+          currentTaskIndex: nextIndex,
+          timeRemaining: updatedTasks[nextIndex].duration * 60,
+        };
+      }
+      return { ...state, tasks: updatedTasks, timerRunning: false };
+    }
+    default:
+      return state;
+  }
+}
+
+function playCompletionSound(): void {
+  try {
+    new Audio('/mixkit-game-level-completed-2059.wav').play().catch(() => {});
+  } catch {
+    // Audio not supported
+  }
+}
+
+const INITIAL_STATE: AppState = {
+  tasks: INITIAL_TASKS,
+  currentTaskIndex: 0,
+  timerRunning: false,
+  timeRemaining: INITIAL_TASKS[0].duration * 60,
+};
+
+export default function App() {
+  const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+
+  // Run a 1-second interval while the timer is active
+  useEffect(() => {
+    if (!state.timerRunning) return;
+    const id = setInterval(() => dispatch({ type: 'TICK' }), 1000);
+    return () => clearInterval(id);
+  }, [state.timerRunning]);
+
+  const handleToggle = useCallback(() => {
+    dispatch({ type: 'TOGGLE_TIMER' });
   }, []);
 
-  const startTimer = useCallback(
-    (taskId: number) => {
-      const task = tasks.find((t) => t.id === taskId);
-      if (!task || task.completed) return;
+  const handleComplete = useCallback((taskId: string) => {
+    playCompletionSound();
+    dispatch({ type: 'MARK_COMPLETE', taskId });
+  }, []);
 
-      clearTimer();
-      const secs = task.duration * 60;
-      setActiveTaskId(taskId);
-      setSecondsLeft(secs);
-      setTotalSeconds(secs);
-      setIsRunning(true);
-
-      intervalRef.current = setInterval(() => {
-        setSecondsLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(intervalRef.current!);
-            intervalRef.current = null;
-            setIsRunning(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    },
-    [tasks, clearTimer],
-  );
-
-  const markComplete = useCallback(
-    (taskId: number) => {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, completed: true } : t)),
-      );
-
-      if (activeTaskId === taskId) {
-        clearTimer();
-        setActiveTaskId(null);
-        setSecondsLeft(0);
-        setTotalSeconds(0);
-      }
-
-      try {
-        const audio = new Audio('/mixkit-game-level-completed-2059.wav');
-        audio.play().catch(() => {
-          // Autoplay may be blocked; silently ignore
-        });
-      } catch {
-        // Audio not supported; silently ignore
-      }
-    },
-    [activeTaskId, clearTimer],
-  );
-
-  // Clean up interval on unmount
-  useEffect(() => () => clearTimer(), [clearTimer]);
-
-  const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
+  const allComplete = state.tasks.every((t) => t.completed);
+  const currentTask = state.tasks[state.currentTaskIndex] ?? null;
+  const totalSeconds = currentTask ? currentTask.duration * 60 : 0;
 
   return (
     <div className="app">
       <TimerPanel
-        task={activeTask}
-        secondsLeft={secondsLeft}
+        task={currentTask}
+        timeRemaining={state.timeRemaining}
         totalSeconds={totalSeconds}
-        isRunning={isRunning}
-        onStart={startTimer}
+        timerRunning={state.timerRunning}
+        allComplete={allComplete}
+        onToggle={handleToggle}
       />
-      <TaskList
-        tasks={tasks}
-        activeTaskId={activeTaskId}
-        onStart={startTimer}
-        onComplete={markComplete}
+      <SchedulePanel
+        tasks={state.tasks}
+        currentTaskIndex={state.currentTaskIndex}
+        onComplete={handleComplete}
       />
     </div>
   );
 }
-
-export default App;

@@ -1,5 +1,5 @@
 export interface Task {
-  id: number;
+  id: string;
   label: string;
   duration: number; // minutes
   completed: boolean;

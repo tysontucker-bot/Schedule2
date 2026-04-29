@@ -3,10 +3,11 @@ import type { Task } from './types';
 
 interface TimerPanelProps {
   task: Task | null;
-  secondsLeft: number;
+  timeRemaining: number;
   totalSeconds: number;
-  isRunning: boolean;
-  onStart: (taskId: number) => void;
+  timerRunning: boolean;
+  allComplete: boolean;
+  onToggle: () => void;
 }
 
 function formatTime(seconds: number): string {
@@ -15,86 +16,118 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-const RADIUS = 110;
+const RADIUS = 140;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const SVG_SIZE = 320;
+const CENTER = SVG_SIZE / 2;
 
 const TimerPanel: React.FC<TimerPanelProps> = ({
   task,
-  secondsLeft,
+  timeRemaining,
   totalSeconds,
-  isRunning,
+  timerRunning,
+  allComplete,
+  onToggle,
 }) => {
-  const progress = totalSeconds > 0 ? secondsLeft / totalSeconds : 1;
+  if (allComplete) {
+    return (
+      <div className="timer-panel">
+        <div className="timer-complete">
+          <div className="timer-complete-icon">🎉</div>
+          <h2 className="timer-complete-title">All Done!</h2>
+          <p className="timer-complete-sub">Great work today!</p>
+        </div>
+      </div>
+    );
+  }
+
+  const progress = totalSeconds > 0 ? timeRemaining / totalSeconds : 1;
   const dashOffset = CIRCUMFERENCE * (1 - progress);
-  const isUrgent = secondsLeft > 0 && secondsLeft < 30;
-  const strokeColor = isUrgent ? 'var(--danger)' : 'var(--accent)';
+  const isUrgent = timeRemaining > 0 && timeRemaining <= 60;
+  const arcColor = isUrgent ? 'var(--danger)' : 'var(--accent)';
+
+  let statusText = 'Paused';
+  if (timerRunning) statusText = 'Running';
+  else if (timeRemaining === 0) statusText = 'Time Up';
 
   return (
     <div className="timer-panel">
-      <h2 className="timer-title">
-        {task ? task.label : 'Visual Schedule'}
-      </h2>
-      <div className="timer-circle-container">
+      <h2 className="timer-task-label">{task ? task.label : '—'}</h2>
+
+      <div className="timer-circle-wrap">
         <svg
-          width="260"
-          height="260"
-          viewBox="0 0 260 260"
-          aria-label={task ? `Timer: ${formatTime(secondsLeft)} remaining` : 'No active timer'}
+          width={SVG_SIZE}
+          height={SVG_SIZE}
+          viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
+          aria-label={
+            task
+              ? `Timer: ${formatTime(timeRemaining)} remaining`
+              : 'No active task'
+          }
         >
           {/* Background track */}
           <circle
-            cx="130"
-            cy="130"
+            cx={CENTER}
+            cy={CENTER}
             r={RADIUS}
             fill="none"
-            stroke="#2a2a4a"
-            strokeWidth="16"
+            stroke="var(--track)"
+            strokeWidth="20"
           />
           {/* Progress arc */}
           <circle
-            cx="130"
-            cy="130"
+            cx={CENTER}
+            cy={CENTER}
             r={RADIUS}
             fill="none"
-            stroke={strokeColor}
-            strokeWidth="16"
+            stroke={arcColor}
+            strokeWidth="20"
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
-            transform="rotate(-90 130 130)"
-            style={{ transition: isRunning ? 'stroke-dashoffset 1s linear, stroke 0.3s' : 'stroke 0.3s' }}
+            transform={`rotate(-90 ${CENTER} ${CENTER})`}
+            style={{
+              transition: timerRunning
+                ? 'stroke-dashoffset 1s linear, stroke 0.3s'
+                : 'stroke 0.3s',
+            }}
           />
-          {/* Center text */}
+          {/* Time display */}
           <text
-            x="130"
-            y="122"
+            x={CENTER}
+            y={CENTER - 14}
             textAnchor="middle"
             dominantBaseline="middle"
             fill="var(--text)"
-            fontSize="42"
+            fontSize="56"
             fontFamily="monospace"
             fontWeight="bold"
           >
-            {task ? formatTime(secondsLeft) : '--:--'}
+            {task ? formatTime(timeRemaining) : '--:--'}
           </text>
-          {task && (
-            <text
-              x="130"
-              y="162"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill={isRunning ? strokeColor : '#888'}
-              fontSize="16"
-              fontFamily="sans-serif"
-            >
-              {isRunning ? 'Running' : 'Paused'}
-            </text>
-          )}
+          {/* Status label */}
+          <text
+            x={CENTER}
+            y={CENTER + 40}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={timerRunning ? arcColor : 'var(--muted)'}
+            fontSize="22"
+            fontFamily="sans-serif"
+          >
+            {statusText}
+          </text>
         </svg>
       </div>
-      {!task && (
-        <p className="timer-hint">Select a task to start</p>
-      )}
+
+      <button
+        className={`timer-toggle-btn${timerRunning ? ' btn-pause' : ' btn-start'}`}
+        onClick={onToggle}
+        disabled={!task || task.completed}
+        aria-label={timerRunning ? 'Pause timer' : 'Start timer'}
+      >
+        {timerRunning ? '⏸ Pause' : '▶ Start'}
+      </button>
     </div>
   );
 };
